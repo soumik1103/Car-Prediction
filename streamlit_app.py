@@ -1,40 +1,103 @@
 import streamlit as st
 import requests
 
-st.set_page_config(page_title="Car Price Prediction", page_icon="🚗", layout="centered")
+# set_page_config() is used to configure the Streamlit page
+# page_title -> browser tab title
+# page_icon -> emoji/icon shown in tab
+# layout="centered" -> keeps content centered on page
+st.set_page_config(
+    page_title="Car Price Prediction",
+    page_icon="🚗",
+    layout="centered"
+)
 
-API_URL = (
-    "https://car-prediction-lpfl.onrender.com/predict"
-    or "http://127.0.0.1:8000/predict"
-)  # change if your endpoint differs
+# IMPORTANT:
+# This must be your FastAPI backend URL (Render API URL)
+# NOT your Streamlit frontend URL
+API_URL = "https://car-prediction-u2a6.onrender.com/predict"
 
+# App heading
 st.title("🚗 Car Price Prediction")
+
+# Small description under title
 st.caption(
     "This UI sends data to your FastAPI backend and shows predicted selling price."
 )
 
-# --- Inputs (match your dataset columns exactly) ---
-car_name = st.text_input("Car_Name (e.g. swift, ritz, sx4)", value="swift")
+# ---------------------------------------------------
+# USER INPUTS
+# These fields should match your ML model dataset columns
+# ---------------------------------------------------
 
-year = st.number_input("Year", min_value=1990, max_value=2026, value=2014, step=1)
+# Text input for car name
+car_name = st.text_input(
+    "Car_Name (e.g. swift, ritz, sx4)",
+    value="swift"
+)
 
+# Number input for manufacturing year
+year = st.number_input(
+    "Year",
+    min_value=1990,
+    max_value=2026,
+    value=2014,
+    step=1
+)
+
+# Present price of car
 present_price = st.number_input(
-    "Present_Price (in lakhs)", min_value=0.0, value=5.59, step=0.1
+    "Present_Price (in lakhs)",
+    min_value=0.0,
+    value=5.59,
+    step=0.1
 )
 
-kms_driven = st.number_input("Kms_Driven", min_value=0, value=40000, step=1000)
+# Total kilometers driven
+kms_driven = st.number_input(
+    "Kms_Driven",
+    min_value=0,
+    value=40000,
+    step=1000
+)
 
-fuel_type = st.selectbox("Fuel_Type", ["Petrol", "Diesel", "CNG"])
+# Dropdown for fuel type
+fuel_type = st.selectbox(
+    "Fuel_Type",
+    ["Petrol", "Diesel", "CNG"]
+)
 
-seller_type = st.selectbox("Seller_Type", ["Dealer", "Individual"])
+# Dropdown for seller type
+seller_type = st.selectbox(
+    "Seller_Type",
+    ["Dealer", "Individual"]
+)
 
-transmission = st.selectbox("Transmission", ["Manual", "Automatic"])
+# Dropdown for transmission type
+transmission = st.selectbox(
+    "Transmission",
+    ["Manual", "Automatic"]
+)
 
-# Owner is numeric in your dataset (0,1,3). Map UI labels to int.
+# Owner is numeric in dataset
+# We show readable labels to user
 owner_label = st.selectbox(
-    "Owner", ["0 (First Owner)", "1 (Second Owner)", "3 (Third Owner)"]
+    "Owner",
+    [
+        "0 (First Owner)",
+        "1 (Second Owner)",
+        "3 (Third Owner)"
+    ]
 )
+
+# Extract numeric owner value from selected text
+# Example:
+# "1 (Second Owner)" -> 1
 owner = int(owner_label.split()[0])
+
+# ---------------------------------------------------
+# JSON PAYLOAD
+# This data will be sent to FastAPI backend
+# ---------------------------------------------------
 
 payload = {
     "Car_Name": str(car_name),
@@ -47,29 +110,70 @@ payload = {
     "Owner": int(owner),
 }
 
+# Show payload on UI for debugging/testing
 st.write("### Payload being sent:")
 st.json(payload)
 
+# ---------------------------------------------------
+# PREDICT BUTTON
+# ---------------------------------------------------
+
 if st.button("Predict Price 💰"):
+
     try:
-        res = requests.post(API_URL, json=payload, timeout=20)
+        # Sending POST request to FastAPI backend
+        # json=payload automatically converts dict to JSON
+        # timeout=20 means wait max 20 seconds
+        res = requests.post(
+            API_URL,
+            json=payload,
+            timeout=20
+        )
+
+        # If API call successful
         if res.status_code == 200:
+
+            # Convert response JSON into Python dictionary
             data = res.json()
 
-            # adjust keys based on your API response
-            # common patterns: {"prediction": 3.45} or {"predicted_price": 3.45}
-            pred = data.get("prediction", data.get("predicted_price", None))
+            # Get prediction value from API response
+            # Your FastAPI returns:
+            # {
+            #   "prediction_price": 3.80
+            # }
+            pred = data.get("prediction_price")
 
+            # If prediction key missing
             if pred is None:
+
                 st.warning(
-                    "API responded but prediction key not found. Full response below:"
+                    "API responded but prediction key not found."
                 )
+
+                st.write("Full API Response:")
                 st.json(data)
+
             else:
-                st.success(f"✅ Predicted Selling Price: **₹ {pred:.2f} lakhs**")
+                # Show prediction nicely
+                st.success(
+                    f"✅ Predicted Selling Price: ₹ {pred:.2f} lakhs"
+                )
+
         else:
+            # If API gives error response
             st.error(f"❌ API Error {res.status_code}")
+
+            # Show full backend response
             st.code(res.text)
+
     except requests.exceptions.RequestException as e:
-        st.error("❌ Could not connect to API. Is FastAPI running?")
+
+        # Handles:
+        # timeout
+        # connection errors
+        # network issues
+        st.error(
+            "❌ Could not connect to FastAPI backend."
+        )
+
         st.code(str(e))
